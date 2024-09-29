@@ -7,6 +7,7 @@ using System.Web.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using VungNuoi3.Models;
 using System.Linq;
+using Oracle.ManagedDataAccess.Types;
 
 
 namespace VungNuoi3.Controllers
@@ -27,6 +28,67 @@ namespace VungNuoi3.Controllers
         {
             return View();
         }
+        [HttpPost]
+        public ActionResult Register(string username, string password, string tenKhachHang, string diaChi, string soDienThoai)
+        {
+            OracleConnect db = new OracleConnect();
+            string hashedPassword = EncryptPassword(password); 
+
+            try
+            {
+                using (var connection = new OracleConnection(db.GetConnectionString()))
+                {
+                    connection.Open();
+
+                    // Kiểm tra xem username có tồn tại không
+                    using (var checkCommand = new OracleCommand("KiemTraUsernameTonTai", connection))
+                    {
+                        checkCommand.CommandType = CommandType.StoredProcedure;
+
+                        var existsParameter = new OracleParameter("p_exists", OracleDbType.Int32) { Direction = ParameterDirection.Output };
+                        checkCommand.Parameters.Add(new OracleParameter("p_username", username));
+                        checkCommand.Parameters.Add(existsParameter);
+
+                        checkCommand.ExecuteNonQuery();
+
+                        // Chuyển đổi giá trị từ OracleDecimal sang int
+                        int v_exists = ((OracleDecimal)existsParameter.Value).ToInt32();
+                        if (v_exists > 0)
+                        {
+                            ViewBag.ErrorMessage = "Tài khoản đã tồn tại!";
+                            return View("Register");
+                        }
+                    }
+
+                    using (var command = new OracleCommand("TAO_NGUOIDUNG", connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+
+                        //string oracleUsername = "C##" + username;
+
+                        command.Parameters.Add(new OracleParameter("p_username", username)); // Gửi C##An123@
+                        command.Parameters.Add(new OracleParameter("p_password", hashedPassword));
+                        command.Parameters.Add(new OracleParameter("p_tenkh", tenKhachHang));
+                        command.Parameters.Add(new OracleParameter("p_diachi", diaChi));
+                        command.Parameters.Add(new OracleParameter("p_sodienthoai", soDienThoai));
+
+                        command.ExecuteNonQuery();
+                    }
+                }
+
+                return RedirectToAction("Login"); 
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error: " + ex.Message);
+                ViewBag.ErrorMessage = "Đã xảy ra lỗi trong quá trình đăng ký.";
+                return View("Register");
+            }
+        }
+
+
+
+
         [HttpPost]
         public JsonResult KiemTraUser(string username)
         {

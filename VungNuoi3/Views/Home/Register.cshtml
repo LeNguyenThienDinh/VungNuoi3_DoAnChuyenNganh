@@ -25,38 +25,55 @@
 
                                 <!-- Dky -->
                                 <form action="/Home/Register" method="post">
-                                    
+                                    <!-- Username -->
                                     <div class="mb-3">
                                         <label for="username" class="form-label">Username</label>
                                         <input type="text" class="form-control" id="username" name="username">
                                         <span id="usernameError" class="text-danger"></span> <!-- Thông báo lỗi Username -->
                                     </div>
 
+                                    <!-- Tên Khách Hàng -->
+                                    <div class="mb-3">
+                                        <label for="tenKhachHang" class="form-label">Tên Khách Hàng</label>
+                                        <input type="text" class="form-control" id="tenKhachHang" name="tenKhachHang">
+                                    </div>
+
+                                    <!-- Password -->
                                     <div class="mb-4">
                                         <label for="password" class="form-label">Mật khẩu</label>
                                         <input type="password" class="form-control" id="password" name="password">
                                         <span id="passwordError" class="text-danger"></span> <!-- Thông báo lỗi Password -->
                                     </div>
 
+                                    <!-- Confirm Password -->
                                     <div class="mb-4">
                                         <label for="confirmPassword" class="form-label">Xác nhận mật khẩu</label>
                                         <input type="password" class="form-control" id="confirmPassword">
                                         <span id="confirmPasswordError" class="text-danger"></span> <!-- Thông báo lỗi Xác nhận mật khẩu -->
                                     </div>
 
+                                    <!-- Số Điện Thoại -->
                                     <div class="mb-3">
-                                        <label for="address" class="form-label">Địa chỉ</label>
-                                        <input type="text" class="form-control" id="address" name="address">
+                                        <label for="soDienThoai" class="form-label">Số Điện Thoại</label>
+                                        <input type="text" class="form-control" id="soDienThoai" name="soDienThoai">
                                     </div>
 
+                                    <!-- Địa chỉ -->
+                                    <div class="mb-3">
+                                        <label for="address" class="form-label">Địa chỉ</label>
+                                        <input type="text" class="form-control" id="diaChi" name="diaChi">
+                                    </div>
 
-
+                                    <!-- Submit Button -->
                                     <button type="button" class="btn btn-primary w-100 fs-4 mb-4 rounded-2" onclick="submitForm()">Sign Up</button>
+
+                                    <!-- Link to Login -->
                                     <div class="d-flex align-items-center justify-content-center">
                                         <p class="fs-4 mb-0 fw-bold">Bạn đã có tài khoản rồi?</p>
                                         <a class="text-primary fw-bold ms-2" href="/Home/Login">Đăng nhập</a>
                                     </div>
                                 </form>
+
                             </div>
                         </div>
                     </div>
@@ -73,7 +90,7 @@
             var username = $(this).val();
             if (username.length > 0) {
                 $.ajax({
-                    url: '/Home/KiemTraUser',  
+                    url: '/Home/KiemTraUser',
                     method: 'POST',
                     data: { username: username },
                     success: function (response) {
@@ -87,6 +104,7 @@
             }
         });
 
+        // kiem tra pass co du dieu kien dat ra hay ko
         $('#password').on('input', function () {
             var password = $(this).val();
             var passwordError = '';
@@ -97,12 +115,13 @@
                 passwordError = 'Mật khẩu phải có ít nhất 1 ký tự in hoa';
             } else if (!/\d/.test(password)) {
                 passwordError = 'Mật khẩu phải có ít nhất 1 ký tự số';
-            } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+            } else if (!/[!\u0040#$%^&*(),.?":{}|<>]/.test(password)) {
                 passwordError = 'Mật khẩu phải có ít nhất 1 ký tự đặc biệt';
             }
 
             $('#passwordError').text(passwordError);
         });
+
 
         $('#confirmPassword').on('input', function () {
             var password = $('#password').val();
@@ -121,11 +140,10 @@
             var passwordError = $('#passwordError').text();
             var confirmPasswordError = $('#confirmPasswordError').text();
 
-            // Nếu không có lỗi thì submit form
             if (usernameError === '' && passwordError === '' && confirmPasswordError === '') {
-                $('form').submit();  
+                $('form').submit();
             } else {
-                alert('Vui lòng sửa các lỗi hiện hữu');
+                alert('Vui lòng nhập đúng và điền đầy đủ thông tin');
             }
         }
     </script>

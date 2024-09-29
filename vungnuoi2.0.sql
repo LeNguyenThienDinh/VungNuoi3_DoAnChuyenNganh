@@ -134,7 +134,7 @@ INSERT INTO HoNuoi (Maho, Tenho, Mavung, LoaiThuySan, DienTich, TrangThai)
 VALUES ('H04', 'H? nu?i mi?n T?y', 'D03', 'C?', 120, '?ang ho?t ??ng');
 
 INSERT INTO HoNuoi (Maho, Tenho, Mavung, LoaiThuySan, DienTich, TrangThai) 
-VALUES ('H05', 'H? nu?i T?y Nguy?n', 'E01', '?c', 130, 'Ng?ng ho?t ??ng');
+VALUES ('H05', 'H? nu?i T?y Nguy?n', 'E01', 'C?', 130, 'Ng?ng ho?t ??ng');
 
 
 -- table DonViVanChuyen
@@ -179,7 +179,7 @@ INSERT INTO KhachHang (MaKH, TenKH, DiaChi, SoDienThoai)
 VALUES ('KH02', 'Nguy?n V?n C?nh', 'TP.HCM', '0987654321');
 
 INSERT INTO KhachHang (MaKH, TenKH, DiaChi, SoDienThoai) 
-VALUES ('KH03', 'D??ng Qu?c Tu?n', '?? N?ng', '0912345678');
+VALUES ('KH03', '??ng Qu?c Tu?n', '?? N?ng', '0912345678');
 
 INSERT INTO KhachHang (MaKH, TenKH, DiaChi, SoDienThoai) 
 VALUES ('KH04', 'Tr?n Trung Tr?c', 'C?n Th?', '0934567890');
@@ -258,6 +258,10 @@ CREATE TABLE USERS (
 ALTER TABLE USERS ADD (ROLE VARCHAR2(20));
 ALTER TABLE USERS ADD (MaKH VARCHAR2(10));
 
+INSERT INTO USERS (USERNAME, PASSWORD, ROLE, MAKH) 
+VALUES ('admin', 'F005FFA5B669E6FC51EBC7A23E7DF0D8', 'ADMIN', NULL);
+
+
 DELETE FROM USERS
 WHERE USERNAME = 'taikhoan10';
 
@@ -297,13 +301,11 @@ END;
 select * from users
 select * from khachhang
 
--- X?a ng??i d?ng t? b?ng USERS
 DELETE FROM USERS
-WHERE MAKH IN ('KH00000001', 'KH00000002', 'KH00000003', 'KH06', 'KH08');
+WHERE USERNAME = 'admin';
 
--- X?a th?ng tin kh?ch h?ng t? b?ng KHACHHANG (n?u c?n)
-DELETE FROM KHACHHANG
-WHERE MAKH IN ('KH00000001', 'KH00000002', 'KH00000003', 'KH06', 'KH08');
+
+
 
 
 --select user va khach hang
@@ -419,7 +421,7 @@ BEGIN
     -- Ki?m tra m? kh?ch h?ng kh?ng t?n t?i
     SELECT COUNT(*) INTO v_exists FROM KHACHHANG WHERE MAKH = v_MaKH;
     IF v_exists > 0 THEN
-        RAISE_APPLICATION_ERROR(-20002, 'M? kh?ch h?ng ?? t?n t?i!');
+        RAISE_APPLICATION_ERROR(-20002, 'M? Kh?ch h?ng ?? t?n t?i!');
     END IF;
 
     INSERT INTO USERS (USERNAME, PASSWORD, ROLE, MAKH)
@@ -441,7 +443,7 @@ SELECT * FROM KHACHHANG WHERE MAKH = 'KH01';
 
 
 ----------------------------------------------------------------------------------------------tao nguoi dung 2.0
-CREATE OR REPLACE PROCEDURE TaoNguoiDung( 
+CREATE OR REPLACE PROCEDURE Tao_NguoiDung( 
     p_username IN VARCHAR2,
     p_password IN VARCHAR2,
     p_tenkh IN VARCHAR2,
@@ -466,18 +468,18 @@ BEGIN
         EXIT WHEN v_exists = 0;
     END LOOP;
 
-    -- T?o user trong Oracle v?i username v? password (username ?? c? ti?n t? C## t? C#)
-    EXECUTE IMMEDIATE 'CREATE USER ' || p_username || ' IDENTIFIED BY ' || p_password;
+    -- T?o user trong Oracle v?i username v? password
+    EXECUTE IMMEDIATE 'CREATE USER "' || p_username || '" IDENTIFIED BY "' || p_password || '"';
 
     -- C?p quy?n CONNECT cho user
-    EXECUTE IMMEDIATE 'GRANT CONNECT TO ' || p_username;
+    EXECUTE IMMEDIATE 'GRANT CONNECT TO "' || p_username || '"';
 
     -- C?p quy?n SELECT cho b?ng KHACHHANG
-    EXECUTE IMMEDIATE 'GRANT SELECT ON KHACHHANG TO ' || p_username;
+    EXECUTE IMMEDIATE 'GRANT SELECT ON KHACHHANG TO "' || p_username || '"';
 
     -- L?u th?ng tin v?o b?ng USERS v? KHACHHANG
     INSERT INTO USERS (USERNAME, PASSWORD, ROLE, MAKH)
-    VALUES (p_username, p_password, v_role, v_MaKH); -- L?u p_username (g?c)
+    VALUES (p_username, p_password, v_role, v_MaKH);
 
     INSERT INTO KHACHHANG (MAKH, TENKH, DIACHI, SODIENTHOAI)
     VALUES (v_MaKH, p_tenkh, p_diachi, p_sodienthoai);
@@ -490,35 +492,20 @@ EXCEPTION
         RAISE_APPLICATION_ERROR(-20002, 'L?i t?o ng??i d?ng: ' || SQLERRM || ' | Chi ti?t: ' || DBMS_UTILITY.FORMAT_CALL_STACK);
 END;
 
-CREATE USER C##ban IDENTIFIED BY ban;
-GRANT DBA TO C##VUNGNUOI;
-GRANT CONNECT, RESOURCE TO C##VUNGNUOI;
-GRANT CREATE SESSION TO C##VUNGNUOI;
-SELECT * 
-FROM DBA_SYS_PRIVS 
-WHERE GRANTEE = 'C##VUNGNUOI';
 
---step1
-SHOW CON_NAME;
 
---step2
-SELECT NAME, OPEN_MODE FROM V$PDBS;
+select * from users
+SELECT COUNT(*) AS NUMBER_OF_USERS FROM ALL_USERS;
+SELECT USERNAME FROM ALL_USERS;
 
---step3
-ALTER SESSION SET CONTAINER = XEPDB1;
+GRANT CONNECT TO VUNGNUOI WITH ADMIN OPTION;
 
---step4
-create user VUNGNUOI identified by vungnuoi;
+GRANT CREATE USER TO VUNGNUOI;
+GRANT INSERT ON USERS TO VUNGNUOI;
+GRANT INSERT ON KHACHHANG TO VUNGNUOI;
 
---step5
-GRANT CONNECT, RESOURCE TO VUNGNUOI;
 
---step6
-grant dba to VUNGNUOI;
-
---step7
-SELECT NAME, CON_ID, OPEN_MODE FROM V$PDBS;
-SELECT name, pdb FROM v$services;
+create user ban identified by ban;
 
 
 
@@ -535,21 +522,7 @@ SELECT name, pdb FROM v$services;
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+GRANT EXECUTE ON DBMS_CRYPTO TO VUNGNUOI;
 
 
 
@@ -636,6 +609,27 @@ EXCEPTION
         p_role := 'UNKNOWN';
 END;
 
+DECLARE
+    l_encrypted_password RAW(128);
+    l_key RAW(8) := UTL_I18N.STRING_TO_RAW('1AQ#7T78', 'AL32UTF8'); -- kh?a b? m?t
+BEGIN
+    l_encrypted_password := DBMS_CRYPTO.ENCRYPT(
+        src => UTL_I18N.STRING_TO_RAW('admin123', 'AL32UTF8'),
+        typ => DBMS_CRYPTO.DES_CBC_PKCS5,
+        key => l_key
+    );
+
+    INSERT INTO USERS (USERNAME, PASSWORD, ROLE, MAKH)
+    VALUES ('admin', l_encrypted_password, 'ADMIN', NULL);
+END;
+
+DELETE FROM USERS
+WHERE USERNAME = 'admin';
+
+select * from users
+
+SELECT * FROM USERS WHERE USERNAME = 'admin';
+
 -----------------------------------------------------------------------------------------------procedure lay du lieu khach hang
 CREATE OR REPLACE PROCEDURE LayDuLieuKH (
     OUT_CURSOR OUT SYS_REFCURSOR
@@ -655,6 +649,3 @@ BEGIN
     COMMIT;
 END;
 /
-
-
-
