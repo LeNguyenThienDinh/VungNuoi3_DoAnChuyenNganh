@@ -14,6 +14,7 @@ namespace VungNuoi3.Controllers
 {
     public class HomeController : Controller
     {
+
         // GET: Home
         public ActionResult Index()
         {
@@ -60,13 +61,13 @@ namespace VungNuoi3.Controllers
                         }
                     }
 
-                    using (var command = new OracleCommand("TAO_NGUOIDUNG", connection))
+                    using (var command = new OracleCommand("C##VUNGNUOI.TAO_NGUOIDUNG", connection))
                     {
                         command.CommandType = CommandType.StoredProcedure;
 
-                        //string oracleUsername = "C##" + username;
+                        string oracleUsername = "C##" + username;
 
-                        command.Parameters.Add(new OracleParameter("p_username", username)); // Gửi C##An123@
+                        command.Parameters.Add(new OracleParameter("p_username", oracleUsername)); // Gửi C##An123@
                         command.Parameters.Add(new OracleParameter("p_password", hashedPassword));
                         command.Parameters.Add(new OracleParameter("p_tenkh", tenKhachHang));
                         command.Parameters.Add(new OracleParameter("p_diachi", diaChi));
@@ -243,8 +244,9 @@ namespace VungNuoi3.Controllers
                 }
             }
 
-            
+
         }
+
 
         public ActionResult Logout()
         {

@@ -319,7 +319,7 @@ JOIN
     KHACHHANG k 
 ON 
     u.MaKH = k.MaKH;
-
+SELECT * FROM USERS
 -----------------------------------------------------------------------------------------------thu tuc lay thong tin khach hang
 CREATE OR REPLACE PROCEDURE thongtinKH(
     p_username IN VARCHAR2,
@@ -441,7 +441,7 @@ SELECT * FROM KHACHHANG WHERE MAKH = 'KH01';
 
 
 ----------------------------------------------------------------------------------------------tao nguoi dung 2.0
-CREATE OR REPLACE PROCEDURE TaoNguoiDung( 
+CREATE OR REPLACE PROCEDURE TAO_NGUOIDUNG( 
     p_username IN VARCHAR2,
     p_password IN VARCHAR2,
     p_tenkh IN VARCHAR2,
@@ -466,8 +466,11 @@ BEGIN
         EXIT WHEN v_exists = 0;
     END LOOP;
 
-    -- T?o user trong Oracle v?i username v? password (username ?? c? ti?n t? C## t? C#)
-    EXECUTE IMMEDIATE 'CREATE USER ' || p_username || ' IDENTIFIED BY ' || p_password;
+    -- T?o user trong Oracle v?i username v? password
+    EXECUTE IMMEDIATE 'CREATE USER "' || p_username || '" IDENTIFIED BY "' || p_password || '"';
+
+    -- Thi?t l?p profile cho user
+    EXECUTE IMMEDIATE 'ALTER USER "' || p_username || '" PROFILE DEFAULT';
 
     -- C?p quy?n CONNECT cho user
     EXECUTE IMMEDIATE 'GRANT CONNECT TO ' || p_username;
@@ -477,10 +480,12 @@ BEGIN
 
     -- L?u th?ng tin v?o b?ng USERS v? KHACHHANG
     INSERT INTO USERS (USERNAME, PASSWORD, ROLE, MAKH)
-    VALUES (p_username, p_password, v_role, v_MaKH); -- L?u p_username (g?c)
+    VALUES (p_username, p_password, v_role, v_MaKH);
 
     INSERT INTO KHACHHANG (MAKH, TENKH, DIACHI, SODIENTHOAI)
     VALUES (v_MaKH, p_tenkh, p_diachi, p_sodienthoai);
+
+    EXECUTE IMMEDIATE 'ALTER PROFILE DEFAULT LIMIT IDLE_TIME 2 PASSWORD_LIFE_TIME 3/12 FAILED_LOGIN_ATTEMPTS 3';
 
     COMMIT;
 
@@ -490,35 +495,25 @@ EXCEPTION
         RAISE_APPLICATION_ERROR(-20002, 'L?i t?o ng??i d?ng: ' || SQLERRM || ' | Chi ti?t: ' || DBMS_UTILITY.FORMAT_CALL_STACK);
 END;
 
-CREATE USER C##ban IDENTIFIED BY ban;
-GRANT DBA TO C##VUNGNUOI;
-GRANT CONNECT, RESOURCE TO C##VUNGNUOI;
-GRANT CREATE SESSION TO C##VUNGNUOI;
+
+
+---------------------------------------------------------------------------------------tao profile cho user
+
+
+
+
+
+
 SELECT * 
 FROM DBA_SYS_PRIVS 
 WHERE GRANTEE = 'C##VUNGNUOI';
 
---step1
-SHOW CON_NAME;
+grant create user to C##VUNGNUOI
 
---step2
-SELECT NAME, OPEN_MODE FROM V$PDBS;
 
---step3
-ALTER SESSION SET CONTAINER = XEPDB1;
 
---step4
-create user VUNGNUOI identified by vungnuoi;
 
---step5
-GRANT CONNECT, RESOURCE TO VUNGNUOI;
-
---step6
-grant dba to VUNGNUOI;
-
---step7
-SELECT NAME, CON_ID, OPEN_MODE FROM V$PDBS;
-SELECT name, pdb FROM v$services;
+create user C##kh1 identified by kh1
 
 
 
@@ -530,11 +525,19 @@ SELECT name, pdb FROM v$services;
 
 
 
+create user C##taikhoan1 identified by taikhoan1;
+grant connect to C##taikhoan1;
+grant select on khachhang to C##taikhoan1;
 
 
+CREATE PROFILE C##my_profile 
+LIMIT 
+  IDLE_TIME 2 
+  PASSWORD_LIFE_TIME 90 
+  FAILED_LOGIN_ATTEMPTS 3;
 
 
-
+ALTER USER C##taikhoan1 PROFILE C##my_profile;
 
 
 
@@ -656,5 +659,81 @@ BEGIN
 END;
 /
 
+CREATE USER C##ban IDENTIFIED BY ban;
+GRANT DBA TO C##VUNGNUOI;
+GRANT CONNECT, RESOURCE TO C##VUNGNUOI;
+GRANT CREATE SESSION TO C##VUNGNUOI;
+SELECT *
+FROM USER_SYS_PRIVS
+WHERE USERNAME = 'C##VUNGNUOI';
 
+
+GRANT EXECUTE ON procedure C##VUNGNUOI.TAO_NGUOIDUNG TO C##VUNGNUOI;
+GRANT EXECUTE ON C##VUNGNUOI.TAO_NGUOIDUNG TO C##VUNGNUOI;
+
+
+
+SELECT *
+FROM USER_ROLE_PRIVS
+WHERE USERNAME = 'C##VUNGNUOI';
+
+SELECT *
+FROM ALL_OBJECTS
+WHERE OBJECT_NAME = 'TAO_NGUOIDUNG'
+AND OBJECT_TYPE = 'PROCEDURE'
+AND OWNER = 'C##VUNGNUOI';
+
+CREATE OR REPLACE PROCEDURE TAO_NGUOIDUNG_TEST AS
+BEGIN
+    NULL; 
+END;
+
+GRANT EXECUTE ON C##VUNGNUOI.TAO_NGUOIDUNG TO C##VUNGNUOI WITH GRANT OPTION;
+
+SELECT *
+FROM USER_SYS_PRIVS
+WHERE USERNAME = 'C##VUNGNUOI';
+
+create user C##ban1 identified by ban1;
+
+select * from users
+
+  
+GRANT EXECUTE ON C##VUNGNUOI.TAO_NGUOIDUNG TO C##VUNGNUOI;
+GRANT EXECUTE ON C##VUNGNUOI.TAO_NGUOIDUNG TO C##VUNGNUOI;
+
+
+SELECT *
+FROM ALL_OBJECTS
+WHERE OBJECT_NAME = 'TAO_NGUOIDUNG' 
+  AND OBJECT_TYPE = 'PROCEDURE';
+
+
+
+
+ 
+
+
+
+--step1
+SHOW CON_NAME;
+
+--step2
+SELECT NAME, OPEN_MODE FROM V$PDBS;
+
+--step3
+ALTER SESSION SET CONTAINER = XEPDB1;
+
+--step4
+create user VUNGNUOI identified by vungnuoi;
+
+--step5
+GRANT CONNECT, RESOURCE TO VUNGNUOI;
+
+--step6
+grant dba to VUNGNUOI;
+
+--step7
+SELECT NAME, CON_ID, OPEN_MODE FROM V$PDBS;
+SELECT name, pdb FROM v$services;
 

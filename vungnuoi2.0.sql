@@ -526,52 +526,6 @@ GRANT EXECUTE ON DBMS_CRYPTO TO VUNGNUOI;
 
 
 
------------------------------------------------------------------------------------------------procedure tao nguoi dung
-CREATE OR REPLACE PROCEDURE Tao_NguoiDung (
-    p_username IN VARCHAR2,
-    p_password IN VARCHAR2,
-    p_tenKhachHang IN VARCHAR2,
-    p_diaChi IN VARCHAR2,
-    p_soDienThoai IN VARCHAR2,
-    p_role IN VARCHAR2
-) AS
-    l_encrypted_password RAW(128);
-    l_key RAW(8) := UTL_I18N.STRING_TO_RAW('1AQ#7T78', 'AL32UTF8');
-    l_new_MaKH VARCHAR2(10);
-    l_exists INTEGER;
-BEGIN
-    
-    SELECT COUNT(*) INTO l_exists FROM USERS WHERE USERNAME = p_username;
-    IF l_exists > 0 THEN
-        RAISE_APPLICATION_ERROR(-20001, 'Ng??i d?ng ?? t?n t?i');
-    END IF;
-
-    
-    l_encrypted_password := DBMS_CRYPTO.ENCRYPT(
-        src => UTL_I18N.STRING_TO_RAW(p_password, 'AL32UTF8'),
-        typ => DBMS_CRYPTO.DES_CBC_PKCS5,
-        key => l_key
-    );
-
-    
-    SELECT 'KH' || LPAD(NVL(MAX(SUBSTR(MaKH, 3)), 0) + 1, 2, '0')
-    INTO l_new_MaKH
-    FROM KhachHang;
-
-    LOOP
-        SELECT COUNT(*) INTO l_exists FROM KhachHang WHERE MaKH = l_new_MaKH;
-        EXIT WHEN l_exists = 0;
-        l_new_MaKH := 'KH' || LPAD(TO_NUMBER(SUBSTR(l_new_MaKH, 3)) + 1, 2, '0');
-    END LOOP;
-
-    INSERT INTO USERS (USERNAME, PASSWORD, ROLE, MaKH)
-    VALUES (p_username, l_encrypted_password, p_role, l_new_MaKH);
-
-    INSERT INTO KhachHang (MaKH, TenKH, DiaChi, SoDienThoai)
-    VALUES (l_new_MaKH, p_tenKhachHang, p_diaChi, p_soDienThoai);
-
-    COMMIT;
-END;
 
 
 -----------------------------------------------------------------------------------------------procedure kiem tra dang nhap
@@ -609,22 +563,85 @@ EXCEPTION
         p_role := 'UNKNOWN';
 END;
 
-DECLARE
-    l_encrypted_password RAW(128);
-    l_key RAW(8) := UTL_I18N.STRING_TO_RAW('1AQ#7T78', 'AL32UTF8'); -- kh?a b? m?t
+
+--------------------------
+CREATE OR REPLACE PROCEDURE KiemTraDangNhap (
+    p_username IN VARCHAR2,
+    p_password IN VARCHAR2,
+    p_result OUT VARCHAR2,
+    p_role OUT VARCHAR2
+) AS
+    l_encrypted_password RAW(128); 
+    l_stored_password RAW(128);
+    l_key RAW(32) := UTL_I18N.STRING_TO_RAW('1AQ#7T78ESuerrYKeoAyHe', 'AL32UTF8'); -- Kh?a b? m?t (16 bytes cho AES-128)
+    l_iv RAW(16) := UTL_RAW.CAST_TO_RAW('0000000000000000'); -- IV (16 bytes)
+
 BEGIN
+    -- M? h?a password ng??i d?ng nh?p v?o
+    l_encrypted_password := DBMS_CRYPTO.ENCRYPT(
+        src => UTL_I18N.STRING_TO_RAW(p_password, 'AL32UTF8'),
+        typ => DBMS_CRYPTO.AES_CBC_PKCS5, -- S? d?ng AES thay v? DES
+        key => l_key,
+        iv => l_iv -- S? d?ng IV
+    );
+
+    -- L?y m?t kh?u ?? l?u trong c? s? d? li?u
+    SELECT PASSWORD, ROLE INTO l_stored_password, p_role
+    FROM USERS
+    WHERE USERNAME = p_username;
+
+    -- So s?nh m?t kh?u m? h?a (so s?nh d??i d?ng chu?i th?p l?c ph?n)
+    IF RAWTOHEX(l_stored_password) = RAWTOHEX(l_encrypted_password) THEN
+        p_result := 'SUCCESS';
+    ELSE
+        p_result := 'FAILURE';
+    END IF;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        p_result := 'FAILURE';
+        p_role := 'UNKNOWN';
+    WHEN OTHERS THEN
+        p_result := 'ERROR: ' || SQLERRM;
+END;
+
+
+
+
+
+
+DECLARE
+    l_key RAW(16) := UTL_RAW.CAST_TO_RAW('1AQ#7T78ESu12345'); -- 16-byte key
+    l_iv RAW(16) := UTL_RAW.CAST_TO_RAW('1234567890123456'); -- 16-byte IV
+    l_encrypted_password RAW(2000); -- Declare the variable
+BEGIN
+    -- Ensure key and IV lengths are correct
+    IF LENGTH(l_key) != 16 OR LENGTH(l_iv) != 16 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Key or IV length is incorrect.');
+    END IF;
+
     l_encrypted_password := DBMS_CRYPTO.ENCRYPT(
         src => UTL_I18N.STRING_TO_RAW('admin123', 'AL32UTF8'),
-        typ => DBMS_CRYPTO.DES_CBC_PKCS5,
-        key => l_key
+        typ => DBMS_CRYPTO.AES_CBC_PKCS5, -- Using AES
+        key => l_key,
+        iv => l_iv
     );
 
     INSERT INTO USERS (USERNAME, PASSWORD, ROLE, MAKH)
     VALUES ('admin', l_encrypted_password, 'ADMIN', NULL);
 END;
 
+
+
+
+
+
+
+
 DELETE FROM USERS
 WHERE USERNAME = 'admin';
+DELETE FROM USERS
+WHERE USERNAME = 'df123';
 
 select * from users
 
