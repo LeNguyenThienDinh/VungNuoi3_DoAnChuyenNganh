@@ -1,3 +1,28 @@
+SELECT logins FROM v$instance;
+
+
+ALTER SESSION SET CONTAINER = CDB$ROOT;
+
+SELECT name, cause, type, message, status, action 
+FROM PDB_PLUG_IN_VIOLATIONS 
+WHERE type = 'ERROR' AND status = 'PENDING';
+
+DELETE FROM PDB_PLUG_IN_VIOLATIONS WHERE status = 'PENDING';
+
+
+ALTER SESSION SET CONTAINER = VUNGNUOI;
+
+
+--2 CAU LENH DUOI NAY CHI DUOC DUNG DE TEST USER CO DANG NHAP VAO DATABASE DUOC KHONG HAY THOI
+ALTER SYSTEM DISABLE RESTRICTED SESSION;--------------------------------------------------------
+ALTER SYSTEM ENABLE RESTRICTED SESSION;---------------------------------------------------------
+------------------------------------------------------------------------------------------------
+
+
+
+
+SELECT logins FROM v$instance;
+
 --tao plugable database
 --kiem tra 
 SELECT name, open_mode FROM v$pdbs;
@@ -31,6 +56,7 @@ GRANT CREATE USER TO VUNGNUOI30;
 GRANT DBA TO VUNGNUOI30; 
 GRANT UNLIMITED TABLESPACE TO VUNGNUOI30;
 ALTER USER VUNGNUOI30 QUOTA UNLIMITED ON USERS; 
+GRANT EXECUTE ON DBMS_CRYPTO TO VUNGNUOI30;
 
 
 
@@ -302,7 +328,7 @@ SELECT * FROM USERS WHERE USERNAME = 'Tk123';
 desc users
 
 -----------------------------------------------------------------------------------------------tao procedure xac thuc nguoi dung
-CREATE OR REPLACE PROCEDURE KiemTraDangNhap(
+CREATE OR REPLACE PROCEDURE Kiem_TraDangNhap(
     p_username IN VARCHAR2,
     p_password IN VARCHAR2,  -- nhan mat khau ma hoa
     p_result OUT VARCHAR2,
@@ -361,12 +387,12 @@ SELECT * FROM USERS
 
 SELECT * 
 FROM all_objects 
-WHERE object_name = 'TAO_NGUOIDUNG' 
+WHERE object_name = 'KIEMTRADANGNHAP' 
   AND object_type = 'PROCEDURE';
   
   SELECT * 
 FROM ALL_DEPENDENCIES 
-WHERE NAME = 'TAO_NGUOIDUNG' 
+WHERE NAME = 'KIEMTRADANGNHAP' 
   AND OWNER = 'SYS';
 
 
@@ -563,10 +589,13 @@ AS
     v_MaKH VARCHAR2(10);
     v_exists INT;
     v_role VARCHAR2(20) := 'USER';
-    v_oracle_username VARCHAR2(35);  -- Th?m bi?n n?y ?? ch?a t?n ng??i d?ng c? ti?n t? C##
+    v_short_username VARCHAR2(30);
 BEGIN
+    -- R?t ng?n t?n ng??i d?ng n?u c?n thi?t
+    v_short_username := SUBSTR(p_username, 1, 30);
+
     -- Ki?m tra username ?? t?n t?i ch?a
-    KiemTraUsernameTonTai(p_username, v_exists);
+    KiemTraUsernameTonTai(v_short_username, v_exists);
     IF v_exists > 0 THEN
         RAISE_APPLICATION_ERROR(-20001, 'Username ?? t?n t?i!');
     END IF;
@@ -578,25 +607,23 @@ BEGIN
         EXIT WHEN v_exists = 0;
     END LOOP;
 
-    -- Th?m ti?n t? C## v?o username cho t?i kho?n Oracle
-    v_oracle_username := 'C##' || p_username;
-
-    -- T?o user trong Oracle v?i username c? ti?n t? v? password
-    EXECUTE IMMEDIATE 'CREATE USER "' || v_oracle_username || '" IDENTIFIED BY "' || p_password || '"';
+    -- T?o user trong Oracle
+    EXECUTE IMMEDIATE 'CREATE USER "' || v_short_username || '" IDENTIFIED BY "' || p_password || '"';
 
     -- Thi?t l?p profile cho user
-    EXECUTE IMMEDIATE 'ALTER USER "' || v_oracle_username || '" PROFILE DEFAULT';
+    EXECUTE IMMEDIATE 'ALTER USER "' || v_short_username || '" PROFILE DEFAULT';
 
     -- C?p quy?n CONNECT cho user
-    EXECUTE IMMEDIATE 'GRANT CONNECT TO ' || v_oracle_username;
+    EXECUTE IMMEDIATE 'GRANT CONNECT TO "' || v_short_username || '"';
 
     -- C?p quy?n SELECT cho b?ng KHACHHANG
-    EXECUTE IMMEDIATE 'GRANT SELECT ON KHACHHANG TO ' || v_oracle_username;
+    EXECUTE IMMEDIATE 'GRANT SELECT ON KHACHHANG TO "' || v_short_username || '"';
 
-    -- L?u th?ng tin v?o b?ng USERS v? KHACHHANG (ch? l?u p_username, kh?ng c? ti?n t? C##)
+    -- L?u th?ng tin v?o b?ng USERS
     INSERT INTO USERS (USERNAME, PASSWORD, ROLE, MAKH)
-    VALUES (p_username, p_password, v_role, v_MaKH);
+    VALUES (v_short_username, p_password, v_role, v_MaKH);
 
+    -- L?u th?ng tin v?o b?ng KHACHHANG
     INSERT INTO KHACHHANG (MAKH, TENKH, DIACHI, SODIENTHOAI)
     VALUES (v_MaKH, p_tenkh, p_diachi, p_sodienthoai);
 
@@ -610,6 +637,14 @@ EXCEPTION
         ROLLBACK;
         RAISE_APPLICATION_ERROR(-20002, 'L?i t?o ng??i d?ng: ' || SQLERRM || ' | Chi ti?t: ' || DBMS_UTILITY.FORMAT_CALL_STACK);
 END;
+
+
+
+
+select * from users
+SELECT username FROM dba_users where username = 'watthe7'
+grant create session to WA1234
+
 
 
 
@@ -629,7 +664,10 @@ WHERE GRANTEE = 'C##VUNGNUOI';
 grant create user to C##VUNGNUOI
 
 
-
+create user kh2 identified by kh2;
+alter user kh2 profile default
+grant connect to kh2
+grant select on khachhang to kh2
 
 create user C##kh1 identified by kh1
 
