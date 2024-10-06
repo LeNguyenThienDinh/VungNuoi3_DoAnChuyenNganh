@@ -151,16 +151,32 @@ namespace VungNuoi3.Controllers
             if (userRole != null)
             {
 
+                string sessionId = Guid.NewGuid().ToString();
+
+                OracleConnect db = new OracleConnect();
+                using (var connection = new OracleConnection(db.GetConnectionString()))
+                {
+                    using (var updateCommand = new OracleCommand("UPDATE USERS SET LastSessionID = :p_sessionID WHERE Username = :p_username", connection))
+                    {
+                        updateCommand.Parameters.Add(new OracleParameter("p_sessionID", sessionId));
+                        updateCommand.Parameters.Add(new OracleParameter("p_username", taiKhoan));
+                        connection.Open();
+                        updateCommand.ExecuteNonQuery();
+                    }
+                }
+
+                // Lưu session vào hệ thống
                 Session["User"] = taiKhoan;
                 Session["Role"] = userRole;
+                Session["SessionID"] = sessionId; 
 
                 if (userRole == "ADMIN")
                 {
-                    return RedirectToAction("Index", "HomeAD"); 
+                    return RedirectToAction("Index", "HomeAD");
                 }
                 else
                 {
-                    return RedirectToAction("Index", "Home");  
+                    return RedirectToAction("Index", "Home");
                 }
             }
             else
@@ -172,7 +188,34 @@ namespace VungNuoi3.Controllers
 
         private bool IsUserLoggedIn()
         {
-            return Session["User"] != null;
+            if (Session["User"] != null && Session["SessionID"] != null)
+            {
+                string sessionId = Session["SessionID"].ToString();
+                string username = Session["User"].ToString();
+
+                OracleConnect db = new OracleConnect();
+                using (var connection = new OracleConnection(db.GetConnectionString()))
+                {
+                    using (var command = new OracleCommand("SELECT LastSessionID FROM USERS WHERE Username = :p_username", connection))
+                    {
+                        command.Parameters.Add(new OracleParameter("p_username", username));
+                        connection.Open();
+
+                        var dbSessionID = command.ExecuteScalar()?.ToString();
+
+                        if (dbSessionID == sessionId)
+                        {
+                            return true;
+                        }
+                        else
+                        {
+                            Session.Clear();
+                            return false;
+                        }
+                    }
+                }
+            }
+            return false;
         }
         private string ValidateUser(string username, string password)
         {
@@ -250,6 +293,22 @@ namespace VungNuoi3.Controllers
 
         public ActionResult Logout()
         {
+            if (Session["User"] != null)
+            {
+                string username = Session["User"].ToString();
+
+                OracleConnect db = new OracleConnect();
+                using (var connection = new OracleConnection(db.GetConnectionString()))
+                {
+                    using (var command = new OracleCommand("UPDATE USERS SET LastSessionID = NULL WHERE Username = :p_username", connection))
+                    {
+                        command.Parameters.Add(new OracleParameter("p_username", username));
+                        connection.Open();
+                        command.ExecuteNonQuery();
+                    }
+                }
+            }
+
             Session.Clear();
             return RedirectToAction("Index");
         }
