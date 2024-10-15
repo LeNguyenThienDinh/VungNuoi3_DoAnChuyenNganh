@@ -1,0 +1,120 @@
+﻿@model VungNuoi3.Models.CustomerViewModel
+<!doctype html>
+<html>
+
+<head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <title>Snippet - BBBootstrap</title>
+    <link href='https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-alpha1/dist/css/bootstrap.min.css' rel='stylesheet'>
+    <link href='~/css/profile.css' rel='stylesheet'>
+    <script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>
+</head>
+
+<body className='snippet-body'>
+    <div class="container rounded bg-white mt-5 mb-5">
+        <div class="row">
+            <div class="col-md-3 border-right">
+                <div class="d-flex flex-column align-items-center text-center p-3 py-5">
+                    <img class="rounded-circle mt-5" width="150px"
+                         src="https://st3.depositphotos.com/15648834/17930/v/600/depositphotos_179308454-stock-illustration-unknown-person-silhouette-glasses-profile.jpg">
+                    <span class="font-weight-bold">@Model.Username</span>
+                    @*<span class="text-black-50">edogaru@mail.com.my</span>*@
+                </div>
+            </div>
+            <div class="col-md-7 border-right">
+                <div class="p-3 py-5">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="text-right">Profile của tôi</h4>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6">
+                            <label class="labels">Họ và tên lót</label>
+                            <input type="text" class="form-control" name="HoTenLot" placeholder="Họ và tên lót của bạn"
+                                   value="@Model.HoTenLot" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="labels">Tên</label>
+                            <input type="text" class="form-control" name="Ten" placeholder="Tên của bạn" value="@Model.Ten"
+                                   readonly>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <label class="labels">Username</label>
+                            <input type="text" class="form-control" name="Username" placeholder="Username của bạn"
+                                   value="@Model.Username" readonly>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="labels">Địa chỉ</label>
+                            <input type="text" class="form-control" name="DiaChi" placeholder="Địa chỉ của bạn"
+                                   value="@Model.DiaChi" readonly>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="labels">Số điện thoại</label>
+                            <input type="text" class="form-control" name="SoDienThoai"
+                                   placeholder="Số điện thoại của bạn" value="@Model.SoDienThoai" readonly>
+                        </div>
+                    </div>
+
+                    <div class="mt-5 text-center d-flex justify-content-center">
+                        <button class="btn btn-primary profile-button me-3" type="button" id="editProfile">Chỉnh sửa Profile</button>
+                        <div style="width: 20px;"></div>
+                        <button class="btn btn-primary profile-button me-3" type="button" id="saveProfile" disabled>Lưu Profile</button>
+                        <div style="width: 20px;"></div>
+                        <button class="btn btn-primary profile-button" type="button" onclick="window.location='@Url.Action("Index", "Home")'">Về trang chủ</button>
+                    </div>
+
+                    <!-- Thông báo kết quả -->
+                    <div id="resultMessage" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type='text/javascript' src='https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-alpha1/dist/js/bootstrap.bundle.min.js'></script>
+
+    <script>
+        $(document).ready(function () {
+
+            $('#editProfile').click(function () {
+                $('input').removeAttr('readonly');  // tat readonly
+                $('#saveProfile').prop('disabled', false);  
+            });
+
+            // Khi nhấn nút Lưu Profile
+            $('#saveProfile').click(function () {
+                // Lấy dữ liệu từ các trường input
+                var profileData = {
+                    HoTenLot: $('input[name="HoTenLot"]').val(),
+                    Ten: $('input[name="Ten"]').val(),
+                    DiaChi: $('input[name="DiaChi"]').val(),
+                    SoDienThoai: $('input[name="SoDienThoai"]').val(),
+                    Username: "@Model.Username" // Giữ nguyên Username
+                };
+
+                // Gửi yêu cầu AJAX đến server
+                $.ajax({
+                    url: '@Url.Action("UpdateProfile", "Profile")',
+                    type: 'POST',
+                    data: JSON.stringify(profileData),
+                    contentType: 'application/json; charset=utf-8',
+                    success: function (response) {
+                        if (response.success) {
+                            $('#resultMessage').html('<span class="text-success">Chỉnh sửa thành công</span>');
+                        } else {
+                            $('#resultMessage').html('<span class="text-danger">Chỉnh sửa thất bại</span>');
+                        }
+                        $('input').attr('readonly', true);  // Khóa lại các trường sau khi lưu
+                        $('#saveProfile').prop('disabled', true);  // Khóa nút Lưu Profile
+                    },
+                    error: function () {
+                        $('#resultMessage').html('<span class="text-danger">Chỉnh sửa thất bại</span>');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>
