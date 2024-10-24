@@ -8,5 +8,6 @@ namespace VungNuoi3.Models
     public class AuthenticationViewModel
     {
         public string EncryptedText { get; set; }
+        public string OriginalChallenge { get; set; }
     }
 }

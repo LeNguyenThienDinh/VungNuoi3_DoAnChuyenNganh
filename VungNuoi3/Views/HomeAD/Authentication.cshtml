@@ -14,7 +14,7 @@
             <div class="card-header">
                 <h3 class="card-title">Xác Thực Người Dùng</h3>
             </div>
-            <form action="/HomeAD/Authenticate" method="post">
+            <form id="authForm" action="/HomeAD/Authenticate" method="post" enctype="multipart/form-data">
                 <div class="card-body">
                     <div class="mb-3">
                         <label for="encryptedText" class="form-label">Đoạn văn bản đã mã hóa</label>
@@ -22,8 +22,8 @@
                                value="@((Model != null && Model.EncryptedText != null) ? Model.EncryptedText : "N/A")">
                     </div>
                     <div class="mb-3">
-                        <label for="privateKey" class="form-label">Khóa riêng của bạn</label>
-                        <input type="text" class="form-control" id="privateKey" name="privateKey" required>
+                        <label for="privateKeyFile" class="form-label">Tải file chứa khóa riêng của bạn</label>
+                        <input type="file" class="form-control" id="privateKeyFile" name="privateKeyFile" accept=".pem" required>
                     </div>
 
                     @if (ViewBag.ErrorMessage != null)
@@ -53,29 +53,48 @@
     <script>
         document.getElementById("decryptButton").addEventListener("click", function () {
             const encryptedText = document.getElementById("encryptedText").value;
-            const privateKey = document.getElementById("privateKey").value;
+            const privateKeyFile = document.getElementById("privateKeyFile").files[0];
 
-            // Gửi yêu cầu AJAX đến controller để giải mã
-            fetch('/HomeAD/Decrypt', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ encryptedText, privateKey })
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Hiển thị kết quả giải mã
-                        document.getElementById("decryptedText").value = data.decryptedText;
-                    } else {
-                        alert(data.message); // Hiển thị thông báo lỗi nếu có
-                    }
+            if (!privateKeyFile) {
+                alert("Xin hãy tải file chứa key chính xác");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const privateKey = e.target.result;
+
+                // Gửi yêu cầu AJAX đến controller để giải mã
+                fetch('/HomeAD/Decrypt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ encryptedText, privateKey })
                 })
-                .catch(error => console.error('Error:', error));
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Hiển thị kết quả giải mã
+                            document.getElementById("decryptedText").value = data.decryptedText;
+                        } else {
+                            alert(data.message); // Hiển thị thông báo lỗi nếu có
+                        }
+                    })
+                    .catch(error => console.error('Error:', error));
+            };
+            reader.readAsText(privateKeyFile);
+        });
+
+        document.getElementById("authForm").addEventListener("submit", function (event) {
+            const privateKeyFile = document.getElementById("privateKeyFile").files[0];
+
+            if (!privateKeyFile) {
+                alert("Xin hãy tải file chứa key chính xác");
+                event.preventDefault(); // Ngăn không cho gửi form nếu không có file khóa riêng
+            }
         });
     </script>
-
 </body>
 
 </html>

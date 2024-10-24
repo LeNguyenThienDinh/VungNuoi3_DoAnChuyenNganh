@@ -1,0 +1,3 @@
+Mở Command Prompt hoặc PowerShell.
+Sử dụng lệnh sau:
+setx AES_KEY "BaoMatAESBaoMatA"

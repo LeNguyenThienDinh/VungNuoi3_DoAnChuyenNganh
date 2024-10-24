@@ -9,6 +9,13 @@ using Oracle.ManagedDataAccess.Client;
 using VungNuoi3.Models;
 using System.Linq;
 using Oracle.ManagedDataAccess.Types;
+using System.Collections.Generic;
+using System.ComponentModel.Design;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.OpenSsl;
+using Org.BouncyCastle.Security;
+using System.Web;
 
 namespace VungNuoi3.Controllers
 {
@@ -20,53 +27,207 @@ namespace VungNuoi3.Controllers
 			ViewBag.IsUserLoggedIn = IsUserLoggedIn();
 			return View();
 		}
+
+        //===================================================================rsa
+
+        public string TaoNgauNhienText(int length = 5)
+        {
+            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            Random random = new Random();
+            return new string(Enumerable.Repeat(chars, length)
+                .Select(s => s[random.Next(s.Length)]).ToArray());
+        }
+
+
+
+        private RSAParameters GetPublicKeyFromPEMFile(string pemFilePath)
+        {
+            using (TextReader reader = new StreamReader(pemFilePath))
+            {
+                PemReader pemReader = new PemReader(reader);
+                var publicKeyParam = (RsaKeyParameters)pemReader.ReadObject();
+                return DotNetUtilities.ToRSAParameters(publicKeyParam);
+            }
+        }
+
+        private RSAParameters GetPrivateKeyFromPEMFile(Stream pemStream)
+        {
+            using (TextReader reader = new StreamReader(pemStream))
+            {
+                PemReader pemReader = new PemReader(reader);
+                var keyObject = pemReader.ReadObject();
+
+                if (keyObject is AsymmetricCipherKeyPair keyPair)
+                {
+                    // Nếu đọc được cặp khóa (public/private)
+                    var privateKeyParam = (RsaPrivateCrtKeyParameters)keyPair.Private;
+                    return DotNetUtilities.ToRSAParameters(privateKeyParam);
+                }
+                else if (keyObject is RsaPrivateCrtKeyParameters privateKeyParam)
+                {
+                    // Nếu chỉ đọc được khóa private
+                    return DotNetUtilities.ToRSAParameters(privateKeyParam);
+                }
+                else
+                {
+                    throw new PemException("Unsupported key format.");
+                }
+            }
+        }
+
+        public string EncryptChallengeWithRSA(string plainText)
+        {
+
+            // lay khoa cong khai
+            string publicPemFilePath = "E:\\hufi\\DoAnChuyenNganh\\tttt\\chiu\\VungNuoi3\\public.pem";
+            var rsaParameters = GetPublicKeyFromPEMFile(publicPemFilePath);
+
+            // ma hoa rsa dung public key
+            using (var rsa = new RSACryptoServiceProvider())
+            {
+                rsa.ImportParameters(rsaParameters);
+                var encryptedData = rsa.Encrypt(Encoding.UTF8.GetBytes(plainText), false);
+                return Convert.ToBase64String(encryptedData);
+            }
+        }
+
+
+        private RSAParameters GetRSAParametersFromPEM(string pem)
+        {
+            using (TextReader reader = new StringReader(pem))
+            {
+                PemReader pemReader = new PemReader(reader);
+                AsymmetricKeyParameter publicKeyParam = (AsymmetricKeyParameter)pemReader.ReadObject();
+                RsaKeyParameters rsaKeyParams = (RsaKeyParameters)publicKeyParam;
+                return DotNetUtilities.ToRSAParameters(rsaKeyParams);
+            }
+        }
+
+        public string EncryptPrivateKeyWithAES(string username)
+        {
+            var aesKey = Environment.GetEnvironmentVariable("AES_KEY");
+            OracleConnect db = new OracleConnect();
+
+            OracleParameter[] parameters = new OracleParameter[]
+            {
+                new OracleParameter("p_username", username),
+                new OracleParameter("p_privateKey", OracleDbType.Varchar2, ParameterDirection.Output)
+            };
+
+            db.ExecuteQuery("GetPrivateKey", parameters);
+            string privateKey = parameters[1].Value.ToString();
+
+            using (var aes = Aes.Create())
+            {
+                aes.Key = Encoding.UTF8.GetBytes(aesKey);
+                aes.GenerateIV();
+                var encryptor = aes.CreateEncryptor(aes.Key, aes.IV);
+
+                using (var ms = new MemoryStream())
+                {
+                    using (var cs = new CryptoStream(ms, encryptor, CryptoStreamMode.Write))
+                    {
+                        using (var sw = new StreamWriter(cs))
+                        {
+                            sw.Write(privateKey);
+                        }
+                    }
+                    var iv = aes.IV;
+                    var encryptedContent = ms.ToArray();
+                    var result = new byte[iv.Length + encryptedContent.Length];
+                    Buffer.BlockCopy(iv, 0, result, 0, iv.Length);
+                    Buffer.BlockCopy(encryptedContent, 0, result, iv.Length, encryptedContent.Length);
+                    return Convert.ToBase64String(result);
+                }
+            }
+        }
+
+        public bool CompareEncryptedPrivateKey(string encryptedPrivateKey, string storedEncryptedPrivateKey)
+        {
+            return encryptedPrivateKey == storedEncryptedPrivateKey;
+        }
+
+        public string DecryptChallengeWithRSA(string encryptedText, Stream privateKeyStream)
+        {
+            // Đọc khóa riêng từ stream
+            var rsaParameters = GetPrivateKeyFromPEMFile(privateKeyStream);
+
+            using (var rsa = new RSACryptoServiceProvider())
+            {
+                rsa.ImportParameters(rsaParameters);
+                var decryptedData = rsa.Decrypt(Convert.FromBase64String(encryptedText), false);
+                return Encoding.UTF8.GetString(decryptedData);
+            }
+        }
+
+        //public bool VerifyDecryptedChallenge(string decryptedChallenge, string originalChallenge)
+        //{
+        //    return decryptedChallenge == originalChallenge;
+        //}
+
+        public bool VerifyDecryptedChallenge(string decryptedChallenge, string originalChallenge)
+        {
+            return decryptedChallenge == originalChallenge;
+        }
+
         public ActionResult Authentication()
         {
+            // Tạo văn bản ngẫu nhiên
             string randomText = TaoNgauNhienText();
 
-            string aesKey = "1234567890123456"; 
+            // Mã hóa thách thức với khóa công khai từ file PEM
+            string encryptedText = EncryptChallengeWithRSA(randomText);
 
-            string encryptedText = EncryptAES(randomText, aesKey);
+            // Lưu originalChallenge vào TempData
+            TempData["OriginalChallenge"] = randomText;
 
             var model = new AuthenticationViewModel
             {
-                EncryptedText = encryptedText
+                EncryptedText = encryptedText,
+                //OriginalChallenge = randomText // Lưu lại văn bản gốc để kiểm tra
             };
 
             return View(model);
         }
 
+
         [HttpPost]
-        public ActionResult Authenticate(string encryptedText, string privateKey, string decryptedText)
+        public ActionResult Authenticate(string encryptedText, string decryptedText, HttpPostedFileBase privateKeyFile)
         {
-            var user = GetUserByPrivateKey(privateKey);
-
-            if (user != null)
+            if (privateKeyFile != null && privateKeyFile.ContentLength > 0)
             {
-                string decryptedResult = Decrypt(encryptedText, privateKey);
-
-                if (decryptedResult == decryptedText)
+                // Đọc nội dung của file
+                using (var stream = privateKeyFile.InputStream)
                 {
-                    TempData["SuccessMessage"] = "Xác thực thành công!";
-                    return RedirectToAction("Index", "HomeAD");
+                    // Gọi hàm giải mã thách thức
+                    string decryptedChallenge = DecryptChallengeWithRSA(encryptedText, stream);
+
+                    // Lấy originalChallenge từ TempData
+                    string originalChallenge = TempData["OriginalChallenge"]?.ToString();
+
+                    // So sánh thông điệp đã giải mã với văn bản gốc
+                    if (VerifyDecryptedChallenge(decryptedChallenge, originalChallenge))
+                    {
+                        TempData["SuccessMessage"] = "Xác thực thành công!";
+                        return RedirectToAction("Index", "HomeAD");
+                    }
                 }
             }
 
+            // Tăng số lần thử nghiệm không thành công
             int failedAttempts = (int)(Session["FailedAttempts"] ?? 0) + 1;
             Session["FailedAttempts"] = failedAttempts;
 
+            // Kiểm tra nếu số lần thử nghiệm vượt quá 3
             if (failedAttempts >= 3)
             {
-
-                Session.Clear(); 
+                Session.Clear();
                 return RedirectToAction("Index", "Home");
             }
 
             TempData["ErrorMessage"] = "Xác thực không thành công!";
             return View("Authentication");
         }
-
-
 
 
 
@@ -110,20 +271,84 @@ namespace VungNuoi3.Controllers
             return user;
         }
 
+        [HttpPost]
+        public JsonResult DecryptText(string encryptedText, string privateKey)
+        {
+            string decryptedText = Decrypt(encryptedText, privateKey);
+
+            if (!string.IsNullOrEmpty(decryptedText))
+            {
+                return Json(new { success = true, decryptedText });
+            }
+            else
+            {
+                return Json(new { success = false, message = "Giải mã không thành công. Vui lòng kiểm tra khóa bí mật." });
+            }
+        }
+
+        private string Decrypt(string encryptedText, string secretKey)
+        {
+            byte[] fullCipher = Convert.FromBase64String(encryptedText);
+            byte[] iv = new byte[16];
+            byte[] cipherTextBytes = new byte[fullCipher.Length - iv.Length];
+
+            Array.Copy(fullCipher, iv, iv.Length);
+            Array.Copy(fullCipher, iv.Length, cipherTextBytes, 0, cipherTextBytes.Length);
+
+            using (Aes aes = Aes.Create())
+            {
+                aes.Key = Encoding.UTF8.GetBytes(secretKey);
+                aes.IV = iv; // Use the extracted IV
+
+                aes.Mode = CipherMode.CBC;
+                aes.Padding = PaddingMode.PKCS7;
+
+                using (ICryptoTransform decryptor = aes.CreateDecryptor(aes.Key, aes.IV))
+                {
+                    using (MemoryStream ms = new MemoryStream(cipherTextBytes))
+                    {
+                        using (CryptoStream cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read))
+                        {
+                            using (StreamReader sr = new StreamReader(cs))
+                            {
+                                return sr.ReadToEnd();
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
 
-        //private bool ThucThiXacThucDXung()
-        //{
-        //    // Thực hiện logic xác thực lẫn nhau ở đây
-        //    // Sử dụng khóa đối xứng để mã hóa và xác thực dữ liệu
-        //    // Ví dụ: gửi một thông điệp đến server và chờ phản hồi
 
-        //    // Nếu xác thực thành công
-        //    return true;
+        public string EncryptAES(string plainText, string key)
+        {
+            using (Aes aesAlg = Aes.Create())
+            {
+                aesAlg.Key = Encoding.UTF8.GetBytes(key);
+                aesAlg.IV = new byte[16];
 
-        //    // Nếu xác thực thất bại
-        //    // return false;
-        //}
+                ICryptoTransform encryptor = aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV);
+
+                using (MemoryStream msEncrypt = new MemoryStream())
+                {
+                    using (CryptoStream csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write))
+                    {
+                        using (StreamWriter swEncrypt = new StreamWriter(csEncrypt))
+                        {
+                            swEncrypt.Write(plainText);
+                        }
+                    }
+
+                    byte[] encrypted = msEncrypt.ToArray();
+                    return Convert.ToBase64String(encrypted);
+                }
+            }
+        }
+
+        //=====================================================================ket thuc rsa
+
+
         [HttpPost]
 		public JsonResult KiemTraUser(string username)
 		{
@@ -393,81 +618,7 @@ namespace VungNuoi3.Controllers
 
 
 		}
-        [HttpPost]
-        public JsonResult DecryptText(string encryptedText, string privateKey)
-        {
-            // Giải mã đoạn văn bản bằng khóa bí mật
-            string decryptedText = Decrypt(encryptedText, privateKey); // Phương thức giải mã
-
-            if (!string.IsNullOrEmpty(decryptedText))
-            {
-                return Json(new { success = true, decryptedText });
-            }
-            else
-            {
-                return Json(new { success = false, message = "Giải mã không thành công. Vui lòng kiểm tra khóa bí mật." });
-            }
-        }
-
-        private string Decrypt(string encryptedText, string secretKey)
-        {
-            byte[] fullCipher = Convert.FromBase64String(encryptedText);
-            byte[] iv = new byte[16];
-            byte[] cipherTextBytes = new byte[fullCipher.Length - iv.Length];
-
-            Array.Copy(fullCipher, iv, iv.Length);
-            Array.Copy(fullCipher, iv.Length, cipherTextBytes, 0, cipherTextBytes.Length);
-
-            using (Aes aes = Aes.Create())
-            {
-                aes.Key = Encoding.UTF8.GetBytes(secretKey);
-                aes.IV = iv; // Use the extracted IV
-
-                aes.Mode = CipherMode.CBC;
-                aes.Padding = PaddingMode.PKCS7;
-
-                using (ICryptoTransform decryptor = aes.CreateDecryptor(aes.Key, aes.IV))
-                {
-                    using (MemoryStream ms = new MemoryStream(cipherTextBytes))
-                    {
-                        using (CryptoStream cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read))
-                        {
-                            using (StreamReader sr = new StreamReader(cs))
-                            {
-                                return sr.ReadToEnd();
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-
-
-        public string EncryptAES(string plainText, string key)
-        {
-            using (Aes aesAlg = Aes.Create())
-            {
-                aesAlg.Key = Encoding.UTF8.GetBytes(key);
-                aesAlg.IV = new byte[16]; 
-
-                ICryptoTransform encryptor = aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV);
-
-                using (MemoryStream msEncrypt = new MemoryStream())
-                {
-                    using (CryptoStream csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write))
-                    {
-                        using (StreamWriter swEncrypt = new StreamWriter(csEncrypt))
-                        {
-                            swEncrypt.Write(plainText);
-                        }
-                    }
-
-                    byte[] encrypted = msEncrypt.ToArray();
-                    return Convert.ToBase64String(encrypted);
-                }
-            }
-        }
+        
 
 
 
@@ -564,13 +715,185 @@ namespace VungNuoi3.Controllers
         {
             return View();
         }
-        public string TaoNgauNhienText(int length = 5)
+        
+        public ActionResult PrivRole()
         {
-            const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-            Random random = new Random();
-            return new string(Enumerable.Repeat(chars, length)
-                .Select(s => s[random.Next(s.Length)]).ToArray());
+            var customerDataList = GetAllCustomerData();
+            return View(customerDataList);
         }
+        private List<CustomerViewModel> GetAllCustomerData()
+        {
+            List<CustomerViewModel> customers = new List<CustomerViewModel>();
+
+            OracleConnect db = new OracleConnect();
+
+            try
+            {
+                using (var connection = new OracleConnection(db.GetConnectionString()))
+                {
+                    using (var command = new OracleCommand("getAllCustomers", connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+
+                        // output cursor
+                        command.Parameters.Add(new OracleParameter("p_cursor", OracleDbType.RefCursor)).Direction = ParameterDirection.Output;
+
+                        connection.Open();
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                string maKH = reader["MaKH"].ToString();
+                                string tenKH = reader["TENKH"].ToString();
+                                string diaChi = reader["DIACHI"].ToString();
+                                string soDienThoai = reader["SODIENTHOAI"].ToString();
+
+                                string[] nameParts = tenKH.Split(' ');
+
+                                CustomerViewModel customer = new CustomerViewModel
+                                {
+                                    MaKH = maKH,
+                                    HoTenLot = nameParts.Length > 1 ? string.Join(" ", nameParts.Take(nameParts.Length - 1)) : "",
+                                    Ten = nameParts.Last(),
+                                    DiaChi = diaChi,
+                                    SoDienThoai = soDienThoai
+                                };
+
+                                customers.Add(customer);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error: " + ex.Message);
+            }
+
+            return customers;
+        }
+        public ActionResult Privilege(string maKH)
+        {
+            // Tìm kiếm thông tin khách hàng theo Mã KH
+            var customerData = GetCustomerDataByMaKH(maKH);
+
+            if (customerData == null)
+            {
+                ViewBag.ErrorMessage = "Không tìm thấy thông tin khách hàng với Mã KH: " + maKH;
+                return RedirectToAction("ErrorPage");
+            }
+
+            return View(customerData);
+        }
+
+
+
+
+        private CustomerViewModel GetCustomerDataByMaKH(string maKH)
+        {
+            CustomerViewModel customer = null;
+
+            OracleConnect db = new OracleConnect();
+
+            try
+            {
+                using (var connection = new OracleConnection(db.GetConnectionString()))
+                {
+                    using (var command = new OracleCommand("TTKhachHang", connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+
+                        // input (p_MaKH)
+                        command.Parameters.Add(new OracleParameter("p_MaKH", OracleDbType.Varchar2)).Value = maKH;
+
+                        // output (p_TENKH, p_DIACHI, p_SODIENTHOAI)
+                        command.Parameters.Add(new OracleParameter("p_TENKH", OracleDbType.Varchar2, 100)).Direction = ParameterDirection.Output;
+                        command.Parameters.Add(new OracleParameter("p_DIACHI", OracleDbType.Varchar2, 200)).Direction = ParameterDirection.Output;
+                        command.Parameters.Add(new OracleParameter("p_SODIENTHOAI", OracleDbType.Varchar2, 15)).Direction = ParameterDirection.Output;
+
+                        connection.Open();
+                        command.ExecuteNonQuery();
+
+                        // Kiểm tra xem dữ liệu có được trả về không
+                        if (command.Parameters["p_TENKH"].Value != DBNull.Value)
+                        {
+                            string tenKH = command.Parameters["p_TENKH"].Value.ToString();
+                            string diaChi = command.Parameters["p_DIACHI"].Value.ToString();
+                            string soDienThoai = command.Parameters["p_SODIENTHOAI"].Value.ToString();
+
+                            string[] nameParts = tenKH.Split(' ');
+
+                            customer = new CustomerViewModel
+                            {
+                                MaKH = maKH,
+                                HoTenLot = nameParts.Length > 1 ? string.Join(" ", nameParts.Take(nameParts.Length - 1)) : "",
+                                Ten = nameParts.Last(),
+                                DiaChi = diaChi,
+                                SoDienThoai = soDienThoai
+                            };
+                        }
+                        else
+                        {
+                            Console.WriteLine("Không tìm thấy khách hàng với Mã KH: " + maKH);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error: " + ex.Message);
+            }
+
+            return customer;
+        }
+
+        [HttpPost]
+        public JsonResult UpdateCustomer(CustomerViewModel model, string SelectedAttribute, int SoLuong)
+        {
+            try
+            {
+                // Call the method to update the user's profile attribute
+                UpdateUserProfileInOracle(model.Username, SelectedAttribute, SoLuong);
+
+                // Return success message
+                return Json(new { success = true, message = "Cập nhật thông tin thành công!" });
+            }
+            catch (Exception ex)
+            {
+                // Return error message
+                return Json(new { success = false, message = "Có lỗi xảy ra: " + ex.Message });
+            }
+        }
+
+
+        private void UpdateUserProfileInOracle(string username, string attribute, int value)
+        {
+            OracleConnect db = new OracleConnect();
+
+            try
+            {
+                using (var connection = new OracleConnection(db.GetConnectionString()))
+                {
+                    using (var command = new OracleCommand("UpdateUserProfile", connection))
+                    {
+                        command.CommandType = CommandType.StoredProcedure;
+
+                        // input parameters
+                        command.Parameters.Add(new OracleParameter("p_Username", OracleDbType.Varchar2)).Value = username;
+                        command.Parameters.Add(new OracleParameter("p_Attribute", OracleDbType.Varchar2)).Value = attribute;
+                        command.Parameters.Add(new OracleParameter("p_Value", OracleDbType.Int32)).Value = value;
+
+                        connection.Open();
+                        command.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error updating user profile attribute: " + ex.Message);
+            }
+        }
+
 
     }
 }

@@ -1,0 +1,104 @@
+﻿@using VungNuoi3.Models
+@model CustomerViewModel
+
+@{
+    ViewBag.Title = "Chỉnh sửa thông tin khách hàng";
+}
+
+<h2>Chỉnh sửa thông tin</h2>
+
+<div id="message"></div> <!-- Div to display success or error messages -->
+
+@using (Html.BeginForm("UpdateCustomer", "Customer", FormMethod.Post, new { id = "updateForm" }))
+{
+    @Html.HiddenFor(model => model.MaKH) <!-- Giữ mã khách hàng để không thay đổi -->
+
+    <div>
+        <label>Họ Tên Lót</label>
+        @Html.TextBoxFor(model => model.HoTenLot)
+    </div>
+
+    <div>
+        <label>Tên</label>
+        @Html.TextBoxFor(model => model.Ten)
+    </div>
+
+    <div>
+        <label>Địa Chỉ</label>
+        @Html.TextBoxFor(model => model.DiaChi)
+    </div>
+
+    <div>
+        <label>Số Điện Thoại</label>
+        @Html.TextBoxFor(model => model.SoDienThoai)
+    </div>
+
+    <div>
+        <label>Chọn Thuộc Tính</label>
+        @Html.DropDownList("SelectedAttribute", new List<SelectListItem>
+        {
+            new SelectListItem { Text = "FAILED_LOGIN_ATTEMPTS: 3", Value = "FAILED_LOGIN_ATTEMPTS" },
+            new SelectListItem { Text = "PASSWORD_LIFE_TIME: 30", Value = "PASSWORD_LIFE_TIME" },
+            new SelectListItem { Text = "PASSWORD_LOCK_TIME: 1/1440", Value = "PASSWORD_LOCK_TIME" }
+        }, "Chọn thuộc tính", new { @class = "large-combobox" })
+
+        <label>Số Lượng</label>
+        @Html.TextBox("SoLuong", "", new { type = "number", min = "0", @class = "small-input" })
+    </div>
+
+    <button type="submit" class="btn btn-success">Cập Nhật</button>
+}
+
+<script>
+    $(document).ready(function () {
+        $('#updateForm').submit(function (event) {
+            event.preventDefault(); // Prevent the form from submitting the traditional way
+
+            $.ajax({
+                url: '@Url.Action("UpdateCustomer", "Customer")',
+                type: 'POST',
+                data: $(this).serialize(),
+                success: function (response) {
+                    $('#message').html('<div class="alert alert-success">Cập nhật thông tin thành công!</div>');
+                },
+                error: function (xhr, status, error) {
+                    $('#message').html('<div class="alert alert-danger">Có lỗi xảy ra: ' + xhr.responseText + '</div>');
+                }
+            });
+        });
+    });
+</script>
+
+<style>
+    .large-combobox {
+        width: 200px; /* Tăng kích thước combobox */
+    }
+
+    .small-input {
+        width: 50px; /* Giảm kích thước ô nhập số lượng */
+    }
+
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .table-bordered {
+        border: 1px solid #ddd;
+    }
+
+        .table-bordered th, .table-bordered td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+    .btn-primary {
+        color: #fff;
+        background-color: #007bff;
+        border-color: #007bff;
+        padding: 5px 10px;
+        text-decoration: none;
+        border-radius: 3px;
+    }
+</style>

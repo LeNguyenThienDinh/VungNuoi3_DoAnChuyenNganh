@@ -1,0 +1,62 @@
+﻿@using VungNuoi3.Models
+@model List<CustomerViewModel>
+
+@{
+    ViewBag.Title = "Danh sách khách hàng";
+}
+
+<h2>Danh Sách Khách Hàng</h2>
+
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Mã KH</th>
+            <th>Họ Tên Lót</th>
+            <th>Tên</th>
+            <th>Địa Chỉ</th>
+            <th>Số Điện Thoại</th>
+            <th>Hành Động</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var customer in Model)
+        {
+            <tr>
+                <td>@customer.MaKH</td>
+                <td>@customer.HoTenLot</td>
+                <td>@customer.Ten</td>
+                <td>@customer.DiaChi</td>
+                <td>@customer.SoDienThoai</td>
+                <td>
+                    <a href="@Url.Action("Privilege", "HomeAD", new { maKH = customer.MaKH })" class="btn btn-primary">Chỉnh Sửa</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<style>
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .table-bordered {
+        border: 1px solid #ddd;
+    }
+
+        .table-bordered th, .table-bordered td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+    .btn-primary {
+        color: #fff;
+        background-color: #007bff;
+        border-color: #007bff;
+        padding: 5px 10px;
+        text-decoration: none;
+        border-radius: 3px;
+    }
+</style>
